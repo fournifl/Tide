@@ -22,6 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 import pyfes
+import os
 import pdb
 
 
@@ -75,17 +76,23 @@ def main():
     """
     Main program
     """
-    "export FES_DATA='/home/florent/ownCloud/R&D/DATA/TIDE/FES_2014/FES2014_b_elevations_extrapolated/ocean_tide_extrapolated/'"
-    f_tide_out = '/home/florent/Projects/Cannes/Water_levels/tide_from_harmonic_constituents/tide_from_fes_constituents.pk'
+
+    # study location
+    # location = 'la_figueirette'
+    # lon_study = 6.93494
+    # lat_study = 43.4835
+    location = 'Cannes'
+    lon_study = 7.027011
+    lat_study = 43.545697
+
+    fes_data = '/home/florent/ownCloud/R&D/DATA/TIDE/FES_2014/FES2014_b_elevations_extrapolated/ocean_tide_extrapolated/'
+    os.environ['FES_DATA'] = fes_data
+    f_tide_out = '/home/florent/Projects/Cannes/Water_levels/tide_from_harmonic_constituents/tide_from_fes_constituents_{location}.pk'.format(
+                 location=location)
     tide_results = {}
     tide_results['tide_from_fes'] = []
     args = usage()
     visu = False
-
-    # study location
-    location = 'La Figueirette'
-    lon_study = 6.93494
-    lat_study = 43.4835
 
     # Create handler
     short_tide = pyfes.Handler("ocean", "memory", args.ocean.name)
@@ -95,19 +102,22 @@ def main():
         radial_tide = None
 
     # Creating a grid that will be used to interpolate the tide
-    lats = np.arange(43.4, 43.6, 0.01)
-    lons = np.arange(6.8, 7.0, 0.01)
+    # lats = np.arange(43.4, 43.6, 0.01)
+    # lons = np.arange(6.8, 7.0, 0.01)
+    lats = np.arange(43.5, 43.6, 0.01)
+    lons = np.arange(6.8, 7.2, 0.01)
     grid_lons, grid_lats = np.meshgrid(lons, lats)
     shape = grid_lons.shape
 
     # dates
     start_date = np.datetime64('2020-03-11 12:00')
-    end_date  = np.datetime64('2021-03-01 12:00')
+    end_date = np.datetime64('2021-03-01 12:00')
     step = 10
     vec_dates = compute_dates(start_date, end_date, step)
     tide_results['dates'] = vec_dates
     dates = np.empty(shape, dtype='datetime64[us]')
     for date in vec_dates:
+        print(date)
         dates.fill(date)
 
         # Calculate tide
@@ -137,13 +147,14 @@ def main():
         # Affichage
         if visu:
             plt.pcolormesh(grid_lons, grid_lats, geo_tide)
-            plt.text(lon_extract, lat_extract, '%.3f' %tide_extract)
+            plt.text(lon_extract, lat_extract, '%.3f' % tide_extract)
             plt.colorbar()
             plt.show()
 
     # save tide results into pickle
     with open(f_tide_out, 'wb') as file_tide_out:
         pickle.dump(tide_results, file_tide_out, protocol=2)
+
 
 if __name__ == '__main__':
     main()
