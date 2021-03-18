@@ -9,7 +9,7 @@ Surge calculation can be performed too, comparing calculated tide with tide gaug
 
 
 ## Installation
-Install pyfes library in a conda environment
+Install pyfes library in a conda environment, and the few libraries specified in requirements file.
 
 ```
 conda install -c fbriol fes
