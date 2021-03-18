@@ -2,6 +2,7 @@ import datetime
 import pickle
 from datetime import timedelta
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pdb
@@ -78,12 +79,22 @@ def oversample_array_with_constant_tstep(arr, dates, dates_oversampling):
 
 
 def compute_surge(t_start, t_end, dates_tg, water_level_tg, dates_fes, tide_height_fes, step):
+    # interpolate FES and tg data on the same time array
     dates_tstep_constant = compute_period(t_start, t_end, step / (3600.0 * 24))
     water_level_tg_tstep_constant = oversample_array_with_constant_tstep(water_level_tg, dates_tg, dates_tstep_constant)
     tide_height_fes_tstep_constant = oversample_array_with_constant_tstep(tide_height_fes, dates_fes,
                                                                           dates_tstep_constant)
+    # surge calculation
     surge = water_level_tg_tstep_constant - tide_height_fes_tstep_constant
     return dates_tstep_constant, surge
+
+
+def save_surge(dates_tstep_constant, surge, file_pk):
+    results_surge = {}
+    results_surge['dates'] = dates_tstep_constant
+    results_surge['surge'] = surge
+    with open(file_pk, 'wb') as f_out:
+        pickle.dump(results_surge, f_out)
 
 
 def plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, dates_tstep_constant, surge, dates_cmems,
@@ -91,25 +102,25 @@ def plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, date
     f, ax = plt.subplots(2, figsize=(28, 6), sharex=True)
     ax[0].plot(dates_tg, water_level_tg, color='navy', markersize=2, label='Tide gauge water level')
     ax[0].plot(dates_fes, tide_height_fes, color='dodgerblue', markersize=2, label='FES2014 tide')
-    # ax.plot(dates_cmems, water_level_cmems, '.g', markersize=2)
     ax[0].set_ylabel('Water level (m)', fontsize=16)
     ax[0].set_title(
         'WATER LEVEL RELATIVE TO {vertical_ref} AT {loc}'.format(vertical_ref=vertical_ref, loc=location.upper()),
-        fontsize=18)
+        fontsize=16)
     ax[0].legend(loc='upper right', fontsize=10, framealpha=0.6)
     ax[0].grid(True)
     ax[1].set_ylabel('Surge (m)', fontsize=16)
-    ax[1].set_title('SURGE')
+    ax[1].set_title('SURGE', fontsize=16)
     ax[1].plot(dates_tstep_constant, surge, color='darkseagreen', markersize=2, label='surge')
+    ax[1].plot(dates_cmems, water_level_cmems, '.g', markersize=2)
     ax[1].axhline(y=0, linewidth=2, color='gray', dashes=(4, 4))
     ax[1].legend(loc='upper right', fontsize=10, framealpha=0.6)
     ax[1].grid(True)
+    ax[1].set_xlim([min(dates_fes), max(dates_fes)])
     ax[1].xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m/%d %H'))
     ax[1].xaxis.set_major_locator(mdates.DayLocator(interval=t_interval))
     f.autofmt_xdate()
-    plt.legend()
     plt.show()
-    f.savefig(png_out)
+    # f.savefig(png_out)
     plt.close()
 
 # OPTIONS D'EXECUTION, AFFICHAGE
@@ -119,13 +130,14 @@ options = dict(
 
 location = 'La Figueirette'
 path_water_levels = '/home/florent/Projects/Cannes/Water_levels/'
+path_fes = os.path.join(path_water_levels, 'tide_from_harmonic_constituents/')
 
-# f_wl_cmems = path_water_levels + '/MEDSEA_ANALYSIS_FORECAST_PHY_006_013/extract_pt_data/wl_extracted_at_La_Figueirette.pk'
+f_wl_cmems = path_water_levels + '/MEDSEA_ANALYSIS_FORECAST_PHY_006_013/extract_pt_data/wl_extracted_at_La_Figueirette.pk'
 
-t_start = datetime.datetime(2020, 3, 12)
-t_end = datetime.datetime(2021, 3, 1)
-# t_start = datetime.datetime(2020, 12, 04)
-# t_end = datetime.datetime(2020, 12, 24, 0)
+# t_start = datetime.datetime(2020, 3, 12)
+# t_end = datetime.datetime(2021, 3, 1)
+t_start = datetime.datetime(2020, 6, 15)
+t_end = datetime.datetime(2020, 7, 15)
 
 # read tg water level
 ZH_to_IGN69 = 0.329
@@ -143,7 +155,7 @@ dates_tg, water_level_tg = select_data_inside_study_period(t_start, t_end, np.ar
                                                            np.array(water_level_tg))
 
 # read FES tide
-f_tide_from_fes = path_water_levels + 'tide_from_harmonic_constituents/tide_from_fes_constituents.pk'
+f_tide_from_fes = path_fes + 'tide_from_fes_constituents_la_figueirette.pk'
 NM_to_ZH = - 0.51
 NM_to_IGN69 = NM_to_ZH + ZH_to_IGN69
 dates_fes, tide_height_fes = read_tide_from_fes(f_tide_from_fes, NM_to_IGN69)
@@ -151,10 +163,12 @@ dates_fes = convert_datetime64_array_to_datetime_array(dates_fes)
 dates_fes, tide_height_fes = select_data_inside_study_period(t_start, t_end, np.array(dates_fes),
                                                              np.array(tide_height_fes))
 
-# interpolate FES and tg data on the same time array
+# surge computation
 step = 600  # seconds
-dates_tstep_constant, surge = compute_surge(t_start, t_end, dates_tg, water_level_tg, dates_fes, tide_height_fes,
-                                            step)
+dates_tstep_constant, surge = compute_surge(t_start, t_end, dates_tg, water_level_tg, dates_fes, tide_height_fes, step)
+
+# surge save
+save_surge(dates_tstep_constant, surge, path_fes + 'surge_la_figueirette.pk')
 
 # read CMEMS model data
 geoide_to_ZH = -0.427
@@ -168,5 +182,4 @@ png_out = '/home/florent/Projects/Cannes/Water_levels/tide_from_harmonic_constit
 vertical_ref = 'IGN69'
 t_interval = 7
 plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, dates_tstep_constant, surge, dates_cmems,
-                  water_level_cmems, png_out,
-                  vertical_ref, location, t_interval)
+                  water_level_cmems, png_out, vertical_ref, location, t_interval)
