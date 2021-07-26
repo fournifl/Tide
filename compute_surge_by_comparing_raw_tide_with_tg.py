@@ -45,7 +45,10 @@ def read_tide_from_fes(f_tide_from_fes, NM_to_other_z_ref):
 
 
 def read_wl_cmems(f_water_level_cmems, geoid_to_other_z_ref):
-    water_level = pickle.load(open(f_water_level_cmems, 'rb'))
+    try:
+        water_level = pickle.load(open(f_water_level_cmems, 'rb'))
+    except UnicodeDecodeError:
+        water_level = pickle.load(open(f_water_level_cmems, 'rb'), encoding='latin1')
     time_cmems = water_level['time']
     ssh_cmems = water_level['ssh'][:]
     ssh_cmems -= geoid_to_other_z_ref
@@ -130,14 +133,14 @@ options = dict(
 
 location = 'La Figueirette'
 path_water_levels = '/home/florent/Projects/Cannes/Water_levels/'
-path_fes = os.path.join(path_water_levels, 'tide_from_harmonic_constituents/')
+path_fes = os.path.join(path_water_levels, 'tide_from_harmonic_constituents/202010/')
 
 f_wl_cmems = path_water_levels + '/MEDSEA_ANALYSIS_FORECAST_PHY_006_013/extract_pt_data/wl_extracted_at_La_Figueirette.pk'
 
 # t_start = datetime.datetime(2020, 3, 12)
 # t_end = datetime.datetime(2021, 3, 1)
-t_start = datetime.datetime(2020, 6, 15)
-t_end = datetime.datetime(2020, 7, 15)
+t_start = datetime.datetime(2020, 10, 1)
+t_end = datetime.datetime(2020, 10, 30)
 
 # read tg water level
 ZH_to_IGN69 = 0.329
@@ -171,11 +174,10 @@ dates_tstep_constant, surge = compute_surge(t_start, t_end, dates_tg, water_leve
 save_surge(dates_tstep_constant, surge, path_fes + 'surge_la_figueirette.pk')
 
 # read CMEMS model data
-geoide_to_ZH = -0.427
+geoide_to_ZH = -0.51
 geoide_to_IGN69 = geoide_to_ZH + ZH_to_IGN69
-# dates_cmems, water_level_cmems = read_wl_cmems(f_wl_cmems, geoide_to_IGN69)
-dates_cmems = []
-water_level_cmems = []
+dates_cmems, water_level_cmems = read_wl_cmems(f_wl_cmems, geoide_to_IGN69)
+
 
 # plot
 png_out = '/home/florent/Projects/Cannes/Water_levels/tide_from_harmonic_constituents/surge_by_comparing_fes_tide_with_tg.png'
