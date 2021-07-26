@@ -17,9 +17,9 @@
 Example of using the FES Python interface
 """
 import argparse
-import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pickle
 import pyfes
 import os
@@ -72,6 +72,20 @@ def compute_dates(start_date, end_date, step):
     return vec_dates
 
 
+def plot_tide_at_study_location(tide_results, location, dir_tide_out):
+    png = os.path.join(dir_tide_out, 'tide_from_fes_constituents_{location}.png'.format(location=location))
+    f, ax = plt.subplots(figsize=(22, 12))
+    ax.plot(tide_results['dates'], tide_results['tide_from_fes'], color='dodgerblue', markersize=2,
+            label='FES2014 tide')
+    ax.set_ylabel('Tide level (m)', fontsize=16)
+    ax.set_title('WATER LEVEL RELATIVE TO MEAN SEA LEVEL AT {loc}'.format(loc=location.upper()), fontsize=16)
+    ax.legend(loc='upper right', fontsize=10, framealpha=0.6)
+    ax.grid(True)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m/%d %H'))
+    f.autofmt_xdate()
+    f.savefig(png)
+    plt.show()
+
 def main():
     """
     Main program
@@ -81,14 +95,34 @@ def main():
     # location = 'la_figueirette'
     # lon_study = 6.93494
     # lat_study = 43.4835
-    location = 'Cannes'
-    lon_study = 7.027011
-    lat_study = 43.545697
+    # location = 'Cannes'
+    # lon_study = 7.027011
+    # lat_study = 43.545697
+    # ~ dir_tide_out = '/home/florent/Projects/Cannes/Water_levels/tide_from_harmonic_constituents/'
+    # location = 'Palavas'
+    # lon_study = 3.928
+    # lat_study = 43.523
+    # location = 'Port_Camargue'
+    # lon_study = 4.12
+    # lat_study = 43.522
+    # location = 'Sete'
+    # lon_study = 3.71
+    # lat_study = 43.39
+    # dir_tide_out = '/home/florent/Projects/Palavas-les-flots/Water_levels/tide_from_harmonic_constituents/'
+    # location = 'Merlimont'
+    # lon_study = 1.564
+    # lat_study = 50.461
+    # location = 'Etretat'
+    # lon_study = 0.202376
+    # lat_study = 49.709667
+    location = 'Merlimont' # boulogne en fait
+    lon_study = 1.57766
+    lat_study = 50.72738
+    dir_tide_out = '/home/florent/Projects/{region}/Water_levels/tide_from_harmonic_constituents/'.format(region=location)
 
     fes_data = '/home/florent/ownCloud/R&D/DATA/TIDE/FES_2014/FES2014_b_elevations_extrapolated/ocean_tide_extrapolated/'
     os.environ['FES_DATA'] = fes_data
-    f_tide_out = '/home/florent/Projects/Cannes/Water_levels/tide_from_harmonic_constituents/tide_from_fes_constituents_{location}.pk'.format(
-                 location=location)
+    f_tide_out = os.path.join(dir_tide_out, 'tide_from_fes_constituents_{location}.pk'.format(location=location))
     tide_results = {}
     tide_results['tide_from_fes'] = []
     args = usage()
@@ -102,16 +136,24 @@ def main():
         radial_tide = None
 
     # Creating a grid that will be used to interpolate the tide
-    # lats = np.arange(43.4, 43.6, 0.01)
-    # lons = np.arange(6.8, 7.0, 0.01)
-    lats = np.arange(43.5, 43.6, 0.01)
-    lons = np.arange(6.8, 7.2, 0.01)
+    grid_step = 0.01
+    lons = np.arange(np.floor(lon_study * 10) / 10 - 10*grid_step, np.ceil(lon_study * 10) / 10 + 10*grid_step, grid_step)
+    lats = np.arange(np.floor(lat_study * 10) / 10 - 10*grid_step, np.ceil(lat_study * 10) / 10 + 10*grid_step, grid_step)
+    # ~ lats = np.arange(43.4, 43.6, 0.01)
+    # ~ lons = np.arange(6.8, 7.0, 0.01)
+    # lats = np.arange(43.5, 43.6, 0.01)
+    # lons = np.arange(6.8, 7.2, 0.01)
     grid_lons, grid_lats = np.meshgrid(lons, lats)
     shape = grid_lons.shape
 
     # dates
-    start_date = np.datetime64('2020-03-11 12:00')
-    end_date = np.datetime64('2021-03-01 12:00')
+    # ~ start_date = np.datetime64('2020-03-11 12:00')
+    # ~ end_date = np.datetime64('2020-03-14 12:00')
+    # start_date = np.datetime64('2020-09-01 00:00')
+    # end_date = np.datetime64('2020-10-31 23:00')
+    start_date = np.datetime64('2021-01-01 00:00')
+    end_date = np.datetime64('2021-01-31 00:00')
+    
     step = 10
     vec_dates = compute_dates(start_date, end_date, step)
     tide_results['dates'] = vec_dates
@@ -154,6 +196,9 @@ def main():
     # save tide results into pickle
     with open(f_tide_out, 'wb') as file_tide_out:
         pickle.dump(tide_results, file_tide_out, protocol=2)
+
+    # plot tide at study location
+    plot_tide_at_study_location(tide_results, location, dir_tide_out)
 
 
 if __name__ == '__main__':
