@@ -6,16 +6,13 @@ from datetime import timedelta
 import netCDF4
 from glob import glob
 import scipy
+from scipy.signal import correlate
 from scipy.stats import gaussian_kde
-from scipy.stats import linregress
-from scipy.odr import Model, Data, ODR
-from scipy.optimize import curve_fit
 
-from netCDF4 import Dataset
+import skill_metrics as sm
+from sklearn.metrics import mean_squared_error
 import numpy as np
-import os
 from os.path import join as join
-import copy
 import json
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -186,26 +183,21 @@ def plotly_2d_scatter_plot(x, y, z, dates):
     fig.show()
 
 
-def regression_plots_interp_all_sources_on_ref(water_levels, settings, dir_plots, key_ref='spotter'):
+def regression_plots_interp_all_sources_on_ref(water_levels, dir_plots, key_ref=None):
+    water_levels_interp = interp_all_water_levels_on_specified_one(water_levels, key_ref)
+    water_level_ref_interp = water_levels_interp[key_ref]
+
     water_level_ref = water_levels[key_ref]
     fig, ax = plt.subplots(1, len(water_levels.keys()) - 1, figsize=(22, 10))
     for i, key in enumerate( water_levels.keys()):
         if key != key_ref:
-            indate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_levels[key]['dates']]
-            outdate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_level_ref['dates']]
-            water_level_auxiliary = np.interp(np.array(outdate), np.array(indate), np.array(water_levels[key]['water_level']))
+            water_level_interp = water_levels_interp[key]
             # Calculate the point density
             x = np.array(water_level_ref['water_level'])
-            y = water_level_auxiliary
-            xy = np.vstack([water_level_ref['water_level'], water_level_auxiliary])
+            y = water_level_interp
+            xy = np.vstack([water_level_ref['water_level'], water_level_interp])
             z = gaussian_kde(xy)(xy)
-            # plotly_2d_scatter_plot(x, y, z, water_level_ref['dates'])
-            # plt.figure()
-            # plt.plot(water_levels[key]['dates'], water_levels[key]['water_level'], '+-', label='water level %s before interpolation'%key)
-            # plt.plot(water_level_ref['dates'], water_level_auxiliary, '+-', label='water level %s after interpolation' % key)
-            # plt.plot(water_level_ref['dates'], water_level_ref['water_level'], '+-', label='spotter water level')
-            # plt.legend()
-            # plt.show()
+
             # Sort the points by density, so that the densest points are plotted last
             idx = z.argsort()
             x, y, z = x[idx], y[idx], z[idx]
@@ -234,34 +226,67 @@ def put_gaps_to_nan(water_level_ref_interp, indate, outdate):
     return water_level_ref_interp
 
 
-def regression_plots_interp_all_sources_on_shom(water_levels, settings, dir_plots, key_ref='spotter'):
-    water_level_ref = water_levels[key_ref]
-    indate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_level_ref['dates']]
-    outdate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_levels['model_shom']['dates']]
-    water_level_ref_interp = np.interp(np.array(outdate), np.array(indate), np.array(water_level_ref['water_level']))
-    water_level_ref_interp = put_gaps_to_nan(water_level_ref_interp ,np.array(indate), np.array(outdate))
+def interp_all_water_levels_on_specified_one(water_levels, key_to_interp_to):
+    # interp all sources of water level to the dataset to interp to
+    water_levels_interp = {}
+    for i, key in enumerate( water_levels.keys()):
+        if key != key_to_interp_to:
+            indate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_levels[key]['dates']]
+            outdate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_levels[key_to_interp_to]['dates']]
+            water_level_interp = np.interp(np.array(outdate), np.array(indate), np.array(water_levels[key]['water_level']))
+            water_level_interp = put_gaps_to_nan(water_level_interp, np.array(indate), np.array(outdate))
+            water_levels_interp[key] = water_level_interp
+        else:
+            water_levels[key]['water_level'] = np.array(water_levels[key]['water_level'])
+            water_level_interp = water_levels[key]['water_level']
+            water_levels_interp[key] = water_level_interp
+    return water_levels_interp
 
+
+def interp_all_water_levels_on_regular_time_array(water_levels, t_array):
+    # interp all sources of water level to regular time array
+    outdate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in t_array]
+    water_levels_interp = {}
+    for i, key in enumerate( water_levels.keys()):
+        indate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_levels[key]['dates']]
+        water_level_interp = np.interp(np.array(outdate), np.array(indate), np.array(water_levels[key]['water_level']))
+        water_level_interp = put_gaps_to_nan(water_level_interp, np.array(indate), np.array(outdate))
+        water_levels_interp[key] = water_level_interp
+        # plt.close('all')
+        # plt.figure()
+        # plt.plot(np.array(indate), water_levels[key]['water_level'], '+-', label='%s before interp' % key)
+        # plt.plot(outdate, water_level_interp, '+-', label='%s after interp' % key)
+        # plt.legend()
+        # plt.show()
+    return water_levels_interp
+
+
+
+def regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=None, key_biggest_timestep=None):
+    water_levels_interp = interp_all_water_levels_on_specified_one(water_levels, key_biggest_timestep)
+    water_level_ref_interp = water_levels_interp[key_ref]
     fig, ax = plt.subplots(1, len(water_levels.keys()) - 1, figsize=(22, 10))
     for i, key in enumerate( water_levels.keys()):
-        print(key)
         if key != key_ref:
-            if key != 'model_shom':
-                indate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_levels[key]['dates']]
-                outdate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in water_levels['model_shom']['dates']]
-                water_level_auxiliary = np.interp(np.array(outdate), np.array(indate), np.array(water_levels[key]['water_level']))
-                plt.figure()
-                plt.plot(np.array(indate), water_levels[key]['water_level'], label='%s before interp' % key)
-                plt.plot(outdate, water_level_auxiliary, label='%s after interp' % key)
-                plt.legend()
-            else:
-                water_levels[key]['water_level'] = np.array(water_levels[key]['water_level'])
-                water_level_auxiliary = water_levels[key]['water_level']
+            water_level_interp = water_levels_interp[key]
             # indices without nan
-            inds_no_nan = (~ np.isnan(water_level_ref_interp)) * (~ np.isnan(water_level_auxiliary))
+            inds_no_nan = (~ np.isnan(water_level_ref_interp)) * (~ np.isnan(water_level_interp))
             inds_no_nan = np.where(inds_no_nan)[0]
-            # Calculate the point density
+            # plot timely differences
             x = water_level_ref_interp[inds_no_nan]
-            y = water_level_auxiliary[inds_no_nan]
+            y = water_level_interp[inds_no_nan]
+            dates_no_nan = np.array(water_levels[key_biggest_timestep]['dates'])[inds_no_nan]
+            print("Mean Diff %s - %s = %s"%(key_ref, key, (x-y).mean()))
+            print("Median Diff %s - %s = %s"%(key_ref, key, np.median(x-y)))
+            fig2, ax2 = plt.subplots(1, 1, figsize=(22, 10))
+            ax2.axhline(y=0, linewidth=1, color='k', dashes=(4, 4))
+            ax2.plot(dates_no_nan, x - y, label='diff water level %s - %s' %(key, key_ref))
+            ax2.grid(True)
+            ax2.set_ylim([-1, 1])
+            ax2.set_xlim([min(dates_no_nan), max(dates_no_nan)])
+            ax2.legend()
+            fig2.savefig(join(dir_plots, 'timely_diff_wl_%s_vs_%s.jpg'%(key_ref, key)))
+            # Calculate the point density
             xy = np.vstack([x, y])
             z = gaussian_kde(xy)(xy)
             # Sort the points by density, so that the densest points are plotted last
@@ -280,6 +305,50 @@ def regression_plots_interp_all_sources_on_shom(water_levels, settings, dir_plot
             ax[i].set_ylabel(key)
             ax[i].legend()
     fig.savefig(join(dir_plots, 'regression_plots_interp_all_sources_on_shom_time_serie.jpg'))
+
+
+def plot_taylor_diagrams(water_levels, dir_plots, key_ref=None, key_biggest_timestep=None):
+    fig, ax = plt.subplots(figsize=(7, 6))
+    water_levels_interp = interp_all_water_levels_on_specified_one(water_levels, key_biggest_timestep)
+    # water_level_ref_taylor = water_levels_interp[key_ref]
+    sdevs = []
+    crmsds = []
+    ccoefs = []
+    labels = ['spotter']
+    for key in water_levels_interp.keys():
+        labels.append(key)
+        # indices without nan
+        inds_no_nan = (~ np.isnan(water_levels_interp[key_ref])) * (~ np.isnan(water_levels_interp[key]))
+        inds_no_nan = np.where(inds_no_nan)[0]
+        water_level_ref_taylor = water_levels_interp[key_ref][inds_no_nan]
+        water_level_taylor = water_levels_interp[key][inds_no_nan]
+        taylor_stats = sm.taylor_statistics(water_level_taylor, water_level_ref_taylor, 'data')
+        sdev = np.array([taylor_stats['sdev'][0], taylor_stats['sdev'][1]])
+        if len(sdevs) == 0:
+            sdevs.append(sdev[0])
+            sdevs.append(sdev[1])
+        else:
+            sdevs.append(sdev[1])
+        crmsd = np.array([taylor_stats['crmsd'][0], taylor_stats['crmsd'][1]])
+        if len(crmsds) == 0:
+            crmsds.append(crmsd[0])
+            crmsds.append(crmsd[1])
+        else:
+            crmsds.append(crmsd[1])
+        ccoef = np.array([taylor_stats['ccoef'][0], taylor_stats['ccoef'][1]])
+        if len(ccoefs) == 0:
+            ccoefs.append(ccoef[0])
+            ccoefs.append(ccoef[1])
+        else:
+            ccoefs.append(ccoef[1])
+        # Mean Squared Error from numpy and sklearn.metrics -> different from crmsd !
+        # RMSE = np.sqrt(np.square(np.subtract(Topo_lidar_taylor, Topo_wc_taylor)).mean())
+        RMSE = np.sqrt(mean_squared_error(water_level_taylor, water_level_ref_taylor))
+        crmsd[-1] = RMSE
+    sm.taylor_diagram(np.array(sdevs), np.array(crmsds), np.array(ccoefs), markerLabel=labels, markerLabelColor='k',
+                      styleOBS='-', colOBS='b', markerobs='o', colCOR='firebrick', widthCOR=1.0, titleOBS=key_ref)
+    jpg = join(dir_plots, 'taylor_diagram_water_levels_ref_%s.jpg'%key_ref)
+    plt.savefig(jpg)
 
 
 def plot_water_levels(water_levels, png_out, vertical_ref, location, t_interval):
@@ -316,11 +385,12 @@ def str_to_dtm(date_str):
     return date
 
 
-def read_spotter_pressure(f_spotter, shift_spotter_z):
+def read_spotter_pressure(f_spotter):
     dates_spotter = []
-    water_depth_spotter = []
-    dates_spotter_std = []
+    # water_depth_spotter = []
     std_water_depth_spotter = []
+    dates_spotter_std = []
+    pressure_spotter = []
     with open(f_spotter, 'r') as f_in:
         lines = f_in.readlines()[1:]
         for row in lines:
@@ -329,27 +399,43 @@ def read_spotter_pressure(f_spotter, shift_spotter_z):
                 date_str = ((row.split(',')[0]).split('Z')[0]).split('.')[0]
                 date = datetime.datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
                 dates_spotter.append(date)
-                pressure = int(row.split(',')[-1].split('\n')[0]) * 1e-6
-                water_depth_spotter.append(pressure * 10.0 - shift_spotter_z)
+                pressure_tmp = int(row.split(',')[-1].split('\n')[0]) * 1e-1
+                pressure_spotter.append(pressure_tmp)
+                # water_depth_spotter.append(pressure_tmp * 10.0 - shift_spotter_z)
             if 'stdevpressure' in data_type:
                 date_str = ((row.split(',')[0]).split('Z')[0]).split('.')[0]
                 date = datetime.datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S')
                 dates_spotter_std.append(date)
                 std = int(row.split(',')[-1].split('\n')[0]) * 1e-6
                 std_water_depth_spotter.append(std)
-    return dates_spotter[::-1], water_depth_spotter[::-1], dates_spotter_std[::-1], std_water_depth_spotter[::-1]
+    # return dates_spotter[::-1], pressure_spotterwater_depth_spotter[::-1], dates_spotter_std[::-1], std_water_depth_spotter[::-1]
+    return dates_spotter[::-1], pressure_spotter[::-1], dates_spotter_std[::-1], std_water_depth_spotter[::-1]
 
 
-def apply_pressure_atmo_correction_on_spotter(dates_spotter, water_level_spotter, date_synop, pressure_mer_synop):
+def convert_p_spotter_and_p_atmo_to_water_height(dates_spotter, p_spotter, date_synop, pressure_mer_synop,
+                                                 shift_spotter_z, dir_plots):
     indate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in date_synop]
     outdate = [(t - datetime.datetime(1970, 1, 1)).total_seconds() for t in dates_spotter]
     pressure_mer_synop_interp = np.interp(np.array(outdate), np.array(indate), pressure_mer_synop)
-    water_level_spotter_corrected = []
-    p_mer_moyenne = 1013
-    for i, wl in enumerate(water_level_spotter):
-        wl_corrected = wl - (pressure_mer_synop_interp[i] / 100 - p_mer_moyenne) * 0.01
-        water_level_spotter_corrected.append(wl_corrected)
-    return water_level_spotter_corrected
+    water_depth_spotter = []
+    # water_level_spotter_corrected = []
+    # p_mer_moyenne = 1013
+    # for i, wl in enumerate(water_level_spotter):
+    #     wl_corrected = wl - (pressure_mer_synop_interp[i] / 100 - p_mer_moyenne) * 0.01
+    #     water_level_spotter_corrected.append(wl_corrected)
+    # return water_level_spotter_corrected
+    # 1 bar = 1000hPa, donc 1 bar = 1.e5 Pa, soit 1µbar = 0.1 Pa
+    for i, p in enumerate(p_spotter):
+        h = (p - pressure_mer_synop_interp[i]) / (rho * g) - shift_spotter_z
+        water_depth_spotter.append(h)
+    fig, ax = plt.subplots(1, 1, figsize=(22, 10))
+    ax.plot(dates_spotter, np.array(water_depth_spotter) + shift_spotter_z, label='water height spotter')
+    ax.grid(True)
+    ax.set_xlim([min(dates_spotter), max(dates_spotter)])
+    ax.legend()
+    fig.savefig(join(dir_plots, 'water_height_spotter.jpg'))
+
+    return(water_depth_spotter)
 
 
 def get_synop_station_infos(location, f_ids_stations_synop):
@@ -390,6 +476,47 @@ def read_pressure_station_synop(id_station, dir_synop):
     return date, pressure_station, pressure_mer
 
 
+def datetime_range(start, end, step):
+    """like range() for datetime"""
+    return [start + i * step for i in range((end - start) // step)]
+
+
+def find_phase_difference_between_water_levels(water_levels, key_ref=None):
+    t_array = datetime_range(min(water_levels[key_ref]['dates']), max(water_levels[key_ref]['dates']), timedelta(seconds=60))
+    water_levels_interp = interp_all_water_levels_on_regular_time_array(water_levels, t_array)
+    # water_levels_interp = interp_all_water_levels_on_specified_one(water_levels, key_ref)
+    water_level_interp_ref = water_levels_interp[key_ref]
+    for i, key in enumerate( water_levels.keys()):
+        if key != key_ref:
+            print(key)
+            water_level_interp = water_levels_interp[key]
+            # indices without nan
+            inds_no_nan = (~ np.isnan(water_level_interp_ref)) * (~ np.isnan(water_level_interp))
+            inds_no_nan = np.where(inds_no_nan)[0]
+            A = water_levels_interp[key_ref][inds_no_nan]
+            B = water_level_interp[inds_no_nan]
+            nsamples = A.size
+            dates_no_nan = np.array(t_array)[inds_no_nan]
+            # regularize datasets by subtracting mean and dividing by s.d.
+            A -= A.mean()
+            A /= A.std()
+            B -= B.mean()
+            B /= B.std()
+            # Find cross-correlation
+            xcorr = correlate(A, B)
+            # delta time array to match xcorr
+            dt = np.arange(1 - nsamples, nsamples)
+            recovered_time_shift = dt[xcorr.argmax()]
+            print('recovered_time_shift:', recovered_time_shift)
+            plt.close('all')
+            # plt.plot(xcorr)
+            plt.plot(dates_no_nan, A)
+            plt.plot(dates_no_nan, B)
+            plt.show()
+
+
+            # pdb.set_trace()
+
 # OPTIONS D'EXECUTION, AFFICHAGE
 options = dict(
     read_despiked_tide=0,
@@ -412,6 +539,8 @@ dir_wl_cmems = settings['dir_model_cmems']
 dir_wl_lops = settings['dir_model_lops']
 dir_plots = settings['dir_plots']
 png_out = settings['png_out'].format(dir_plots=dir_plots, location=location)
+rho = settings['rho']
+g = settings['g']
 
 # dictinnary containing all water levels types
 water_levels = {}
@@ -478,14 +607,15 @@ if settings['spotter_pressure_available']:
     water_levels['spotter'] = {}
     f_spotter = settings['f_spotter']
     water_levels['spotter']['color'] = 'g'
-    shift_spotter_z = 18.75
+    shift_spotter_z = 8.64
     # shift_spotter_z = 0.0
-    dates_spotter, wl_spotter, dates_std_spotter, std_wl_spotter = read_spotter_pressure(f_spotter, shift_spotter_z)
+    dates_spotter, p_spotter, dates_std_spotter, std_wl_spotter = read_spotter_pressure(f_spotter)
     # apply atmospheric pressure correction on spotter's pressure sensor
-    wl_spotter_corrected = apply_pressure_atmo_correction_on_spotter(dates_spotter, wl_spotter, date_synop, pressure_mer_synop)
+    water_height_spotter = convert_p_spotter_and_p_atmo_to_water_height(dates_spotter, p_spotter, date_synop,
+                                                                        pressure_mer_synop, shift_spotter_z, dir_plots)
     water_levels['spotter']['dates'] = dates_spotter
-    water_levels['spotter']['water_level_raw'] = wl_spotter
-    water_levels['spotter']['water_level'] = wl_spotter_corrected
+    # water_levels['spotter']['water_level_raw'] = wl_spotter
+    water_levels['spotter']['water_level'] = water_height_spotter
     water_levels['spotter']['label'] = 'spotter'
 
 # timesteps
@@ -494,9 +624,19 @@ if settings['spotter_pressure_available']:
 # lops: 15mn
 # shom: 60mn
 
+# define reference water level
+key_ref = 'spotter'
+key_biggest_timestep = 'model_shom'
+
 # regression plots
-regression_plots_interp_all_sources_on_ref(water_levels, settings, dir_plots, key_ref='spotter')
-regression_plots_interp_all_sources_on_shom(water_levels, settings, dir_plots, key_ref='spotter')
+regression_plots_interp_all_sources_on_ref(water_levels, dir_plots, key_ref='spotter')
+regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=key_ref, key_biggest_timestep=key_biggest_timestep)
+
+# taylor diagrams
+plot_taylor_diagrams(water_levels, dir_plots, key_ref=key_ref, key_biggest_timestep=key_biggest_timestep)
+
+# find phase difference between water levels and ref water level
+find_phase_difference_between_water_levels(water_levels, key_ref=key_ref)
 
 # plot water levels
 # vertical_ref = 'IGN69'
