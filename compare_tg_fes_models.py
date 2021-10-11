@@ -183,7 +183,7 @@ def plotly_2d_scatter_plot(x, y, z, dates):
     fig.show()
 
 
-def regression_plots_interp_all_sources_on_ref(water_levels, dir_plots, key_ref=None):
+def regression_plots_interp_all_sources_on_ref(water_levels, dir_plots, key_ref=None, phase_corrected=False):
     water_levels_interp = interp_all_water_levels_on_specified_one(water_levels, key_ref)
     water_level_ref_interp = water_levels_interp[key_ref]
 
@@ -214,7 +214,12 @@ def regression_plots_interp_all_sources_on_ref(water_levels, dir_plots, key_ref=
             ax[i].set_xlabel(key_ref)
             ax[i].set_ylabel(key)
             ax[i].legend()
-    fig.savefig(join(dir_plots, 'regression_plots_interp_all_sources_on_spotter_time_serie.jpg'))
+    if ~ phase_corrected:
+        info_jpg = ""
+    else:
+        info_jpg = "_phase_corrected"
+    fig.savefig(join(dir_plots, 'regression_plots_interp_all_sources_on_spotter_time_serie{info_jpg}.jpg'.format(
+        info_jpg=info_jpg)))
 
 
 def put_gaps_to_nan(water_level_ref_interp, indate, outdate):
@@ -261,11 +266,49 @@ def interp_all_water_levels_on_regular_time_array(water_levels, t_array):
     return water_levels_interp
 
 
-
-def regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=None, key_biggest_timestep=None):
+def regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=None,
+                                                            key_biggest_timestep=None, phase_corrected=False):
     water_levels_interp = interp_all_water_levels_on_specified_one(water_levels, key_biggest_timestep)
     water_level_ref_interp = water_levels_interp[key_ref]
     fig, ax = plt.subplots(1, len(water_levels.keys()) - 1, figsize=(22, 10))
+    for i, key in enumerate( water_levels.keys()):
+        if key != key_ref:
+            water_level_interp = water_levels_interp[key]
+            # indices without nan
+            inds_no_nan = (~ np.isnan(water_level_ref_interp)) * (~ np.isnan(water_level_interp))
+            inds_no_nan = np.where(inds_no_nan)[0]
+            # plot timely differences
+            x = water_level_ref_interp[inds_no_nan]
+            y = water_level_interp[inds_no_nan]
+            # Calculate the point density
+            xy = np.vstack([x, y])
+            z = gaussian_kde(xy)(xy)
+            # Sort the points by density, so that the densest points are plotted last
+            idx = z.argsort()
+            x, y, z = x[idx], y[idx], z[idx]
+            # calculate r2
+            r2 = scipy.stats.pearsonr(x, y)
+            # regression
+            from statsmodels.formula.api import ols
+            regression = ols("data ~ x", data=dict(data=y, x=x)).fit()
+            ax[i].scatter(x, y, c=z, s=50, label='water levels: %s vs %s' %(key, key_ref))
+            ax[i].text(min(x) + 0.15 * (max(x) - min(x)), min(y) + 0.8 * (max(y) - min(y)),
+                       'y = %.3f x + %.3f \n R²=%.3f' %(regression.params[1], regression.params[0], r2[0]),  color='b',
+                       backgroundcolor='white')
+            ax[i].set_xlabel(key_ref)
+            ax[i].set_ylabel(key)
+            ax[i].legend()
+    if not phase_corrected:
+        info_jpg = ""
+    else:
+        info_jpg = "_phase_corrected"
+    fig.savefig(join(dir_plots, 'regression_plots_interp_all_sources_on_shom_time_serie{info_jpg}.jpg'.format(
+        info_jpg=info_jpg)))
+
+
+def plot_timely_differences(water_levels, key_ref=None, key_biggest_timestep=None, phase_corrected=False):
+    water_levels_interp = interp_all_water_levels_on_specified_one(water_levels, key_biggest_timestep)
+    water_level_ref_interp = water_levels_interp[key_ref]
     for i, key in enumerate( water_levels.keys()):
         if key != key_ref:
             water_level_interp = water_levels_interp[key]
@@ -285,26 +328,13 @@ def regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_pl
             ax2.set_ylim([-1, 1])
             ax2.set_xlim([min(dates_no_nan), max(dates_no_nan)])
             ax2.legend()
-            fig2.savefig(join(dir_plots, 'timely_diff_wl_%s_vs_%s.jpg'%(key_ref, key)))
-            # Calculate the point density
-            xy = np.vstack([x, y])
-            z = gaussian_kde(xy)(xy)
-            # Sort the points by density, so that the densest points are plotted last
-            idx = z.argsort()
-            x, y, z = x[idx], y[idx], z[idx]
-            # calculate r2
-            r2 = scipy.stats.pearsonr(x, y)
-            # regression
-            from statsmodels.formula.api import ols
-            regression = ols("data ~ x", data=dict(data=y, x=x)).fit()
-            ax[i].scatter(x, y, c=z, s=50, label='water levels: %s vs %s' %(key, key_ref))
-            ax[i].text(min(x) + 0.15 * (max(x) - min(x)), min(y) + 0.8 * (max(y) - min(y)),
-                       'y = %.3f x + %.3f \n R²=%.3f' %(regression.params[1], regression.params[0], r2[0]),  color='b',
-                       backgroundcolor='white')
-            ax[i].set_xlabel(key_ref)
-            ax[i].set_ylabel(key)
-            ax[i].legend()
-    fig.savefig(join(dir_plots, 'regression_plots_interp_all_sources_on_shom_time_serie.jpg'))
+            if not phase_corrected:
+                info_jpg = ""
+            else:
+                info_jpg = "_phase_corrected"
+            fig2.savefig(join(
+                dir_plots, 'timely_diff_wl_{key_ref}_vs_{key}{info_jpg}.jpg'.format(key_ref=key_ref, key=key,
+                                                                                    info_jpg=info_jpg)))
 
 
 def plot_taylor_diagrams(water_levels, dir_plots, key_ref=None, key_biggest_timestep=None):
@@ -481,8 +511,10 @@ def datetime_range(start, end, step):
     return [start + i * step for i in range((end - start) // step)]
 
 
-def find_phase_difference_between_water_levels(water_levels, key_ref=None):
-    t_array = datetime_range(min(water_levels[key_ref]['dates']), max(water_levels[key_ref]['dates']), timedelta(seconds=60))
+def find_and_apply_phase_difference_between_water_levels(water_levels, key_ref=None, t_delta_in_s=None):
+    phase_difference = {}
+    t_array = datetime_range(min(water_levels[key_ref]['dates']), max(water_levels[key_ref]['dates']),
+                             timedelta(seconds=t_delta_in_s))
     water_levels_interp = interp_all_water_levels_on_regular_time_array(water_levels, t_array)
     # water_levels_interp = interp_all_water_levels_on_specified_one(water_levels, key_ref)
     water_level_interp_ref = water_levels_interp[key_ref]
@@ -502,20 +534,21 @@ def find_phase_difference_between_water_levels(water_levels, key_ref=None):
             A /= A.std()
             B -= B.mean()
             B /= B.std()
+            # plt.close('all')
+            # plt.plot(dates_no_nan, A)
+            # plt.plot(dates_no_nan, B)
+            # plt.show()
             # Find cross-correlation
             xcorr = correlate(A, B)
             # delta time array to match xcorr
             dt = np.arange(1 - nsamples, nsamples)
             recovered_time_shift = dt[xcorr.argmax()]
             print('recovered_time_shift:', recovered_time_shift)
-            plt.close('all')
-            # plt.plot(xcorr)
-            plt.plot(dates_no_nan, A)
-            plt.plot(dates_no_nan, B)
-            plt.show()
+            # apply phase difference
+            phase_difference = recovered_time_shift * t_delta_in_s
+            water_levels[key]['dates'] = np.array(water_levels[key]['dates']) + timedelta(seconds=int(phase_difference))
+    return phase_difference, water_levels
 
-
-            # pdb.set_trace()
 
 # OPTIONS D'EXECUTION, AFFICHAGE
 options = dict(
@@ -630,13 +663,27 @@ key_biggest_timestep = 'model_shom'
 
 # regression plots
 regression_plots_interp_all_sources_on_ref(water_levels, dir_plots, key_ref='spotter')
-regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=key_ref, key_biggest_timestep=key_biggest_timestep)
+regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=key_ref,
+                                                        key_biggest_timestep=key_biggest_timestep)
+# timely differences
+plot_timely_differences(water_levels, key_ref=key_ref, key_biggest_timestep=key_biggest_timestep)
 
 # taylor diagrams
 plot_taylor_diagrams(water_levels, dir_plots, key_ref=key_ref, key_biggest_timestep=key_biggest_timestep)
 
+
+## study with phase correction
+
 # find phase difference between water levels and ref water level
-find_phase_difference_between_water_levels(water_levels, key_ref=key_ref)
+phase_differences_in_s, water_levels = find_and_apply_phase_difference_between_water_levels(water_levels,
+                                                                                            key_ref=key_ref,
+                                                                                            t_delta_in_s=60)
+# regression plots
+regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=key_ref,
+                                                        key_biggest_timestep=key_biggest_timestep, phase_corrected=True)
+
+# timely differences
+plot_timely_differences(water_levels, key_ref=key_ref, key_biggest_timestep=key_biggest_timestep, phase_corrected=True)
 
 # plot water levels
 # vertical_ref = 'IGN69'
