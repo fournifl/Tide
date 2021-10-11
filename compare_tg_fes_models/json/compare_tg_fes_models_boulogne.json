@@ -1,0 +1,17 @@
+{   "location": "Boulogne",
+    "lon_extract_models": 1.57766,
+    "lat_extract_models": 50.72738,
+    "start": "20210101",
+    "end": "20210110",
+    "tg_available": true,
+    "tg_file": "/home/florent/Projects/Merlimont/Water_levels/tg_boulogne/water_level_tg.txt",
+    "ZH_to_IGN69": 4.382,
+    "fes_available": true,
+    "f_fes": "/home/florent/Projects/Merlimont/Water_levels/tide_from_harmonic_constituents/tide_from_fes_constituents_Boulogne.pk",
+    "NM_to_ZH": -5.0,
+    "model_cmems_available": true,
+    "dir_model_cmems": "/home/florent/Projects/Merlimont/Water_levels/IBI_ANALYSISFORECAST_PHY_005_001/",
+    "model_shom_available": false,
+    "f_shom": "",
+    "png_out": "/home/florent/Projects/Merlimont/Water_levels/comparing_fes_tide_with_tg_and_cmems_at_{location}.png"
+}
