@@ -21,5 +21,7 @@
     "dir_pressure_atmo_synop": "/home/florent/Projects/Etretat/Pression_atmospherique/synop/",
     "f_ids_stations_synop": "/home/florent/dev/wavecams/scripts/Pressure_atmo/postesSynop.csv",
     "dir_plots": "/home/florent/Projects/Etretat/Water_levels/water_levels_comparison/",
-    "png_out": "{dir_plots}/comparing_fes_tide_with_lops_Mars2D_at_{location}.png"
+    "png_out": "{dir_plots}/comparing_fes_tide_with_lops_Mars2D_at_{location}.png",
+    "rho": 1025,
+    "g": 9.80665
 }
