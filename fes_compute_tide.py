@@ -74,7 +74,7 @@ def compute_dates(start_date, end_date, step):
 
 
 def plot_tide_at_study_location(tide_results, location, period, dir_tide_out):
-    png = os.path.join(dir_tide_out, 'tide_from_fes_constituents_{location}_{period].png'.format(
+    png = os.path.join(dir_tide_out, 'tide_from_fes_constituents_{location}_{period}.png'.format(
         location=location, period=period))
     f, ax = plt.subplots(figsize=(22, 12))
     ax.plot(tide_results['dates'], tide_results['tide_from_fes'], color='dodgerblue', markersize=2,
@@ -95,9 +95,9 @@ def main():
     """
 
     # study location
-    # location = 'la_figueirette'
-    # lon_study = 6.93494
-    # lat_study = 43.4835
+    location = 'la_figueirette'
+    lon_study = 6.93494
+    lat_study = 43.4835
     # location = 'Cannes'
     # lon_study = 7.027011
     # lat_study = 43.545697
@@ -115,21 +115,22 @@ def main():
     # location = 'Merlimont'
     # lon_study = 1.564
     # lat_study = 50.461
-    location = 'Etretat'
-    lon_study = 0.202376
-    lat_study = 49.709667
+    # location = 'Etretat'
+    # lon_study = 0.202376
+    # lat_study = 49.709667
+    # location = 'Port-la-Nouvelle'
+    # lon_study = 3.070
+    # lat_study = 43.015
     # location = 'Merlimont' # boulogne en fait
     # lon_study = 1.57766
     # lat_study = 50.72738
     dir_tide_out = '/home/florent/Projects/{region}/Water_levels/tide_from_harmonic_constituents/'.format(region=location)
+    if not os.path.exists(dir_tide_out):
+        os.makedirs(dir_tide_out)
 
     # dates
-    # ~ start_date = np.datetime64('2020-03-11 12:00')
-    # ~ end_date = np.datetime64('2020-03-14 12:00')
-    # start_date = np.datetime64('2020-09-01 00:00')
-    # end_date = np.datetime64('2020-10-31 23:00')
-    start_date = np.datetime64('2018-01-01 00:00')
-    end_date = np.datetime64('2023-01-01 00:00')
+    start_date = np.datetime64('2020-03-01 00:00')
+    end_date = np.datetime64('2022-03-31 00:00')
     ts = pd.to_datetime(str(start_date))
     start_date_str = ts.strftime('%Y_%m_%d')
     ts = pd.to_datetime(str(end_date))
@@ -163,7 +164,7 @@ def main():
     grid_lons, grid_lats = np.meshgrid(lons, lats)
     shape = grid_lons.shape
 
-    step = 10
+    step = 10 # s
     vec_dates = compute_dates(start_date, end_date, step)
     tide_results['dates'] = vec_dates
     dates = np.empty(shape, dtype='datetime64[us]')
@@ -201,6 +202,10 @@ def main():
             plt.text(lon_extract, lat_extract, '%.3f' % tide_extract)
             plt.colorbar()
             plt.show()
+
+    for i, date in enumerate(vec_dates):
+        ts = pd.to_datetime(str(date))
+        print('%s,%s' %(ts.strftime('%Y-%m-%d %H:%M:%S'), tide_results['tide_from_fes'][i] + 0.55))
 
     # save tide results into pickle
     with open(f_tide_out, 'wb') as file_tide_out:
