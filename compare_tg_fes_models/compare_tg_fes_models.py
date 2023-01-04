@@ -40,18 +40,14 @@ def find_and_apply_phase_difference_between_water_levels(water_levels, key_ref=N
             A /= A.std()
             B -= B.mean()
             B /= B.std()
-            # plt.close('all')
-            # plt.plot(dates_no_nan, A)
-            # plt.plot(dates_no_nan, B)
-            # plt.show()
             # Find cross-correlation
             xcorr = correlate(A, B)
             # delta time array to match xcorr
             dt = np.arange(1 - nsamples, nsamples)
             recovered_time_shift = dt[xcorr.argmax()]
-            print('recovered_time_shift:', recovered_time_shift)
             # apply phase difference
             phase_difference = recovered_time_shift * t_delta_in_s
+            print('time shift correction: %s s' %phase_difference)
             water_levels[key]['dates'] = np.array(water_levels[key]['dates']) + timedelta(seconds=int(phase_difference))
     return phase_difference, water_levels
 
@@ -170,6 +166,9 @@ if settings['spotter_pressure_available']:
 key_ref = 'spotter'
 key_biggest_timestep = 'model_shom'
 
+# time plot water levels
+plot_water_levels(water_levels, png_out, 'IGN69', location, 7, key_ref)
+
 # regression plots
 regression_plots_interp_all_sources_on_ref(water_levels, dir_plots, key_ref='spotter')
 regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=key_ref,
@@ -183,14 +182,12 @@ plot_taylor_diagrams(water_levels, dir_plots, key_ref=key_ref, key_biggest_times
 
 ## study with phase correction
 
+print('\n results with phase correction:')
 # find phase difference between water levels and ref water level
-plt.close('all')
-plot_water_levels(water_levels, png_out, 'IGN69', location, 7)
 phase_differences_in_s, water_levels = find_and_apply_phase_difference_between_water_levels(water_levels,
                                                                                             key_ref=key_ref,
                                                                                             t_delta_in_s=60)
-plot_water_levels(water_levels, png_out, 'IGN69', location, 7)
-plt.show()
+
 # regression plots
 regression_plots_interp_all_sources_on_biggest_timestep(water_levels, dir_plots, key_ref=key_ref,
                                                         key_biggest_timestep=key_biggest_timestep, phase_corrected=True)
