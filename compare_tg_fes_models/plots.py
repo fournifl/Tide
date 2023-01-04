@@ -131,6 +131,7 @@ def plot_taylor_diagrams(water_levels, dir_plots, key_ref=None, key_biggest_time
     ccoefs = []
     labels = ['spotter']
     for key in water_levels_interp.keys():
+        print(key)
         labels.append(key)
         # indices without nan
         inds_no_nan = (~ np.isnan(water_levels_interp[key_ref])) * (~ np.isnan(water_levels_interp[key]))
@@ -151,15 +152,18 @@ def plot_taylor_diagrams(water_levels, dir_plots, key_ref=None, key_biggest_time
         else:
             crmsds.append(crmsd[1])
         ccoef = np.array([taylor_stats['ccoef'][0], taylor_stats['ccoef'][1]])
+        print('ccoef: %s' % ccoef)
         if len(ccoefs) == 0:
             ccoefs.append(ccoef[0])
             ccoefs.append(ccoef[1])
         else:
             ccoefs.append(ccoef[1])
-        # Mean Squared Error from numpy and sklearn.metrics -> different from crmsd !
-        # RMSE = np.sqrt(np.square(np.subtract(Topo_lidar_taylor, Topo_wc_taylor)).mean())
+        # Mean Squared Error from skill_metrics and sklearn.metrics -> different from crmsd ! In fact the first one
+        # is a centered root-mean-square difference, and the second is a true rmsd
         RMSE = np.sqrt(mean_squared_error(water_level_taylor, water_level_ref_taylor))
-        crmsd[-1] = RMSE
+        print('RMSE: %s' % RMSE)
+        print('Centered RMSE: %s' % crmsds[-1])
+
     sm.taylor_diagram(np.array(sdevs), np.array(crmsds), np.array(ccoefs), markerLabel=labels, markerLabelColor='k',
                       styleOBS='-', colOBS='b', markerobs='o', colCOR='firebrick', widthCOR=1.0, titleOBS=key_ref)
     if not phase_corrected:
@@ -171,8 +175,8 @@ def plot_taylor_diagrams(water_levels, dir_plots, key_ref=None, key_biggest_time
     plt.savefig(jpg)
 
 
-def plot_water_levels(water_levels, png_out, vertical_ref, location, t_interval):
-    f, ax = plt.subplots(1, figsize=(28, 6), sharex=True)
+def plot_water_levels(water_levels, png_out, vertical_ref, location, t_interval, key_ref):
+    f, ax = plt.subplots(1, figsize=(28, 12), sharex=True)
     for type_water_level in water_levels.keys():
         water_level = water_levels[type_water_level]
         ax.plot(water_level['dates'], water_level['water_level'], color=water_level['color'], markersize=2,
@@ -185,10 +189,10 @@ def plot_water_levels(water_levels, png_out, vertical_ref, location, t_interval)
     ax.grid(True)
     ax.axhline(y=0, linewidth=2, color='gray', dashes=(4, 4))
     ax.legend(loc='upper right', fontsize=10, framealpha=0.6)
-    # ax.set_xlim([min(dates_fes), max(dates_fes)])
+    ax.set_xlim([min(water_levels[key_ref]['dates']), max(water_levels[key_ref]['dates'])])
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m/%d %H'))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=t_interval))
     f.autofmt_xdate()
     # plt.show()
-    # f.savefig(png_out)
+    f.savefig(png_out)
     # plt.close()
