@@ -71,16 +71,20 @@ def plot_diff_wl(dates_shom, water_level_shom, tide_height_fes, surge_shom, png_
             name='Water level FES', showlegend=True), row=1, col=1
         )
     fig.add_trace(
+        go.Scatter(x=dates_shom, y=diff_tide * 0.0,
+                   mode='lines', line=dict(color='white', width=1, dash='dash'),
+                   showlegend=False), row=2, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=dates_shom, y=diff_tide,
+                   mode='lines', line=dict(color='orange', width=2),
+                   name='Diff Tide model_Shom vs FES', showlegend=True), row=2, col=1
+    )
+    fig.add_trace(
             go.Scatter(x=dates_shom, y=diff_wl,
             mode='lines', line=dict(color='crimson', width=2),
             name='Diff Water level model_Shom vs FES', showlegend=True), row=2, col=1
-        )
-    fig.add_trace(
-            go.Scatter(x=dates_shom, y=diff_tide,
-            mode='lines', line=dict(color='orange', width=2),
-            name='Diff Tide model_Shom vs FES', showlegend=True), row=2, col=1
-        )
-    
+    )
     fig.update_layout(
         template="plotly_dark",
         width=1800,
@@ -88,7 +92,7 @@ def plot_diff_wl(dates_shom, water_level_shom, tide_height_fes, surge_shom, png_
         legend=dict(orientation="v",
                     yanchor="top",
                     xanchor="right",
-                    y=0.55,
+                    y=0.57,
                     x=0.95),
     )
     fig.update_annotations(font=dict(color='white'))
@@ -106,8 +110,8 @@ dates_shom, tide_shom, surge_shom, water_level_shom = read_tide_shom_ncdf_NM_to_
 dates_fes, tide_height_fes = read_tide_from_fes(file_wl_fes, NM_to_IGN69)
 
 # time ranges comparison Lidar
-# ~ x_range = [datetime.datetime(2019, 8, 1), datetime.datetime(2019, 9, 2, 20)]
-x_range = [datetime.datetime(2020, 1, 5), datetime.datetime(2020, 1, 14, 16)]
+x_range = [datetime.datetime(2019, 8, 24), datetime.datetime(2019, 9, 2, 20)]
+# x_range = [datetime.datetime(2020, 1, 5), datetime.datetime(2020, 1, 14, 16)]
 
 # select data inside study period
 dates_shom_tmp, water_level_shom = select_data_inside_study_period(x_range[0], x_range[1], np.array(dates_shom), np.array(water_level_shom))
