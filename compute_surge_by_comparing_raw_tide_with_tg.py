@@ -106,8 +106,8 @@ def load_surge(file_pk):
     return surge_results['dates'], surge_results['surge']
 
 
-def plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, dates_tstep_constant, surge, dates_cmems,
-                      water_level_cmems, png_out, vertical_ref, location, t_interval):
+def plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, dates_tstep_constant, surge,
+                      png_out, vertical_ref, location, t_interval, t_start_plot, t_end_plot):
     f, ax = plt.subplots(2, figsize=(28, 6), sharex=True)
     ax[0].plot(dates_tg, water_level_tg, color='navy', markersize=2, label='Tide gauge water level')
     ax[0].plot(dates_fes, tide_height_fes, color='dodgerblue', markersize=2, label='FES2014 tide')
@@ -124,7 +124,7 @@ def plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, date
     ax[1].axhline(y=0, linewidth=2, color='gray', dashes=(4, 4))
     ax[1].legend(loc='upper right', fontsize=10, framealpha=0.6)
     ax[1].grid(True)
-    ax[1].set_xlim([min(dates_fes), max(dates_fes)])
+    ax[1].set_xlim([t_start_plot, t_end_plot])
     ax[1].xaxis.set_major_formatter(mdates.DateFormatter('%Y/%m/%d %H'))
     ax[1].xaxis.set_major_locator(mdates.DayLocator(interval=t_interval))
     f.autofmt_xdate()
@@ -135,17 +135,19 @@ def plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, date
 # OPTIONS D'EXECUTION, AFFICHAGE
 options = dict(
     read_despiked_tide=1,
-    compute_surge=True
+    compute_surge=False
 )
 
 location = 'La Figueirette'
 path_water_levels = '/home/florent/Projects/Cannes/Water_levels/'
 path_fes = os.path.join(path_water_levels, 'tide_from_harmonic_constituents/')
 
-f_wl_cmems = path_water_levels + '/MEDSEA_ANALYSIS_FORECAST_PHY_006_013/extract_pt_data/wl_extracted_at_La_Figueirette.pk'
+# f_wl_cmems = path_water_levels + '/MEDSEA_ANALYSIS_FORECAST_PHY_006_013/extract_pt_data/wl_extracted_at_La_Figueirette.pk'
 
 t_start = datetime.datetime(2020, 3, 1)
-t_end = datetime.datetime(2022, 3, 31)
+t_end = datetime.datetime(2024, 5, 1)
+t_start_plot = datetime.datetime(2020, 3, 1)
+t_end_plot = datetime.datetime(2024, 5, 1)
 # t_start = datetime.datetime(2020, 10, 1)
 # t_end = datetime.datetime(2020, 10, 30)
 
@@ -168,7 +170,7 @@ dates_tg, water_level_tg = select_data_inside_study_period(t_start, t_end, np.ar
 
 # read FES tide
 print('read fes')
-f_tide_from_fes = path_fes + 'tide_from_fes_constituents_la_figueirette_2020_03_01_2022_03_31.pk'
+f_tide_from_fes = path_fes + 'tide_from_fes_constituents_la_figueirette_2020_03_01_2024_04_30.pk'
 NM_to_ZH = - 0.51
 NM_to_IGN69 = NM_to_ZH + ZH_to_IGN69
 dates_fes, tide_height_fes = read_tide_from_fes(f_tide_from_fes, NM_to_IGN69)
@@ -181,7 +183,6 @@ if options['compute_surge']:
     print('surge computation')
     step = 600  # seconds
     dates_tstep_constant, surge = compute_surge(t_start, t_end, dates_tg, water_level_tg, dates_fes, tide_height_fes, step)
-
     # surge save
     print('save surge')
     save_surge(dates_tstep_constant, surge, path_fes + 'surge_la_figueirette.pk')
@@ -191,14 +192,14 @@ else:
     dates_tstep_constant, surge = load_surge(path_fes + 'surge_la_figueirette.pk')
 
 # read CMEMS model data
-geoide_to_ZH = -0.51
-geoide_to_IGN69 = geoide_to_ZH + ZH_to_IGN69
-dates_cmems, water_level_cmems = read_wl_cmems(f_wl_cmems, geoide_to_IGN69)
+# geoide_to_ZH = -0.51
+# geoide_to_IGN69 = geoide_to_ZH + ZH_to_IGN69
+# dates_cmems, water_level_cmems = read_wl_cmems(f_wl_cmems, geoide_to_IGN69)
 
 
 # plot
 png_out = '/home/florent/Projects/Cannes/Water_levels/tide_from_harmonic_constituents/surge_by_comparing_fes_tide_with_tg.png'
 vertical_ref = 'IGN69'
-t_interval = 15
-plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, dates_tstep_constant, surge, dates_cmems,
-                  water_level_cmems, png_out, vertical_ref, location, t_interval)
+t_interval = 30
+plot_water_levels(dates_tg, water_level_tg, dates_fes, tide_height_fes, dates_tstep_constant, surge,
+                  png_out, vertical_ref, location, t_interval, t_start_plot, t_end_plot)
