@@ -20,21 +20,6 @@ def compute_period(start_date, end_date, t_step):
     return period
 
 
-def read_tide_tg_zh_to_other_ref(tide_file, other_z_ref):
-    dates = []
-    water_level = []
-    shift_z = other_z_ref
-    with open(tide_file, 'r') as file:
-        lines = file.readlines()[14:]
-        for row in lines:
-            date = datetime.datetime.strptime(row.split(';')[0], '%d/%m/%Y %H:%M:%S')
-            # remove eventual seconds (donnees brutes HF)
-            date = date - timedelta(seconds=date.second)
-            dates.append(date)
-            water_level.append(float(row.split(';')[1]) - shift_z)
-    return dates, water_level
-
-
 def read_tide_from_fes(f_tide_from_fes, NM_to_other_z_ref):
     with open(f_tide_from_fes, 'rb') as file_tide_from_fes:
         tide = pickle.load(file_tide_from_fes)
@@ -42,14 +27,6 @@ def read_tide_from_fes(f_tide_from_fes, NM_to_other_z_ref):
         tide_height_fes = np.array(tide['tide_from_fes'])
         tide_height_fes -= NM_to_other_z_ref
         return dates_fes, tide_height_fes
-
-
-def read_wl_cmems(f_water_level_cmems, geoid_to_other_z_ref):
-    water_level = pickle.load(open(f_water_level_cmems, 'rb'))
-    time_cmems = water_level['time']
-    ssh_cmems = water_level['ssh'][:]
-    ssh_cmems -= geoid_to_other_z_ref
-    return time_cmems, ssh_cmems
 
 
 def convert_datetime64_array_to_datetime_array(datetime64_array):
@@ -76,25 +53,6 @@ def oversample_array_with_constant_tstep(arr, dates, dates_oversampling):
             arr_tstep_constant.append(np.nan)
     print('ouhba')
     return np.array(arr_tstep_constant)
-
-
-def compute_surge(t_start, t_end, dates_tg, water_level_tg, dates_fes, tide_height_fes, step):
-    # interpolate FES and tg data on the same time array
-    dates_tstep_constant = compute_period(t_start, t_end, step / (3600.0 * 24))
-    water_level_tg_tstep_constant = oversample_array_with_constant_tstep(water_level_tg, dates_tg, dates_tstep_constant)
-    tide_height_fes_tstep_constant = oversample_array_with_constant_tstep(tide_height_fes, dates_fes,
-                                                                          dates_tstep_constant)
-    # surge calculation
-    surge = water_level_tg_tstep_constant - tide_height_fes_tstep_constant
-    return dates_tstep_constant, surge
-
-
-def save_surge(dates_tstep_constant, surge, file_pk):
-    results_surge = {}
-    results_surge['dates'] = dates_tstep_constant
-    results_surge['surge'] = surge
-    with open(file_pk, 'wb') as f_out:
-        pickle.dump(results_surge, f_out)
 
 
 def plot_water_levels(dates_fes_1, tide_height_fes_1, dates_fes_2, tide_height_fes_2, location_1, location_2, png_out,
@@ -130,16 +88,16 @@ options = dict(
     read_despiked_tide=1,
 )
 
-path_water_levels = '/home/florent/Projects/Palavas-les-flots/Water_levels/'
+path_water_levels = '/home/florent/Projects/Larmor_plage/Water_levels/'
 path_fes = os.path.join(path_water_levels, 'tide_from_harmonic_constituents/')
-location_1 = 'Palavas'
+location_1 = 'Larmor_Plage'
 # location_2 = 'Port_Camargue'
-location_2 = 'Sete'
+location_2 = 'Port_Tudy'
 f_tide_from_fes_1 = path_fes + 'tide_from_fes_constituents_{location_1}.pk'.format(location_1=location_1)
 f_tide_from_fes_2 = path_fes + 'tide_from_fes_constituents_{location_2}.pk'.format(location_2=location_2)
 
-t_start = datetime.datetime(2021, 4, 9)
-t_end = datetime.datetime(2021, 5, 2)
+t_start = datetime.datetime(2023, 3, 1)
+t_end = datetime.datetime(2023, 4, 30)
 
 # read FES tide
 NM_to_NM = 0.0
